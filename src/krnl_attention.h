@@ -1,7 +1,9 @@
 #ifndef __KRNL_ATTENTION_H__
 #define __KRNL_ATTENTION_H__
 
-#include <stdlib.h>
+#include <hls_math.h>
+
+void krnl_attention(const float*, float*);
 
 #define B 1
 #define T 1024
