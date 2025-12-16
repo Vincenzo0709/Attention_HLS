@@ -67,7 +67,7 @@ void attention_sw(const float* input, float* output) {
 
 
 int main() {
-    printf("--- Starting Attention testbench ---\n");
+    printf("\n--- Starting Attention testbench ---\n");
 
     // Sizes
     int size_input = B*T*3*C;
@@ -115,7 +115,7 @@ int main() {
 
     // Report
     if(errors == 0) {
-        printf("\nSUCCESS!\n");
+        printf("SUCCESS!\n\n");
         printf("Maximum diff: %e\n", max_diff);
     } else {
         printf("\nTEST failed! %d errors found.\n", errors);

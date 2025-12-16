@@ -33,7 +33,7 @@ syn:
 	@echo
 
 
-cosim:
+cosim: syn
 	@echo
 	@echo "Cosimulation starting ..."
 	${COSIM} ${CONFIG} ${WORK_DIR}
@@ -41,7 +41,7 @@ cosim:
 	@echo
 
 
-package:
+package: syn
 	@echo
 	@echo "Packaging IP..."
 	${PACK} ${CONFIG} ${WORK_DIR}

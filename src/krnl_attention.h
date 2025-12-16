@@ -6,8 +6,8 @@
 void krnl_attention(const float*, float*);
 
 #define B 1
-#define T 1024
-#define C 768
+#define T 32//1024
+#define C 128//768
 #define NH 12
 
 #endif
