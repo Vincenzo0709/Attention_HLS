@@ -1,27 +1,32 @@
 #include "krnl_attention.h"
 
-void load_input(const float* in, float mat[B][T][C], const int offset)
-{
+void load_input(const float16_t* in, float mat[B][T][C], const int offset) {
+
+    int b=0, t=0, c=0;
+    float16_t buff;
     
-    for(int b=0; b<B; b++) {
+    for(int l=0; l<INPUT_MM_SIZE; l++) {
 
-        for(int t=0; t<T; t++) {
+        buff=in[l + offset];
 
-            for(int c=0; c<C; c++) {
+        if (c==C) {
+            c=0;
+            t++;
 
-                // The current index points to:
-                // - b sequences ahead (sized T*3*C);
-                // - t tokens ahead (sized 3*C);
-                // - the offset is because of [Q,K,V] chained input;
-                // - c elements ahead.
-                int idx=b*T*3*C + t*3*C + offset*C + c;
-                
-                mat[b][t][c] = in[idx];
-            
+            if (t==T) {
+                t=0;
+                b++;
             }
 
         }
+                
+        for (int k=0; k<INTERFACE_SIZE; k++) {
+            #pragma HLS UNROLL factor=INTERFACE_SIZE
 
+            mat[b][t][c] = ((float *)(&buff))[k];
+            c++;
+
+        }
     }
 
 }
@@ -168,23 +173,26 @@ void attention(float Q[B][T][C], float K[B][T][C], float V[B][T][C], float O[B][
 }
 
 
-void krnl_attention(const float* input, float* output)
-{
+void krnl_attention(const float16_t* input, float16_t* output) {
 
-    #pragma HLS INTERFACE m_axi port=input depth=B*T*3*C bundle=gmem0
-    #pragma HLS INTERFACE m_axi port=output depth=B*T*C bundle=gmem1
+    #pragma HLS INTERFACE mode=m_axi port=input depth=INPUT_SIZE bundle=gmem0
+    #pragma HLS INTERFACE mode=m_axi port=output depth=OUTPUT_SIZE bundle=gmem1
 
     // Local buffers
     float Q[B][T][C];
+    #pragma HLS ARRAY_PARTITION variable=Q type=block factor=INTERFACE_SIZE dim=3
     float K[B][T][C];
+    #pragma HLS ARRAY_PARTITION variable=K type=block factor=INTERFACE_SIZE dim=3
     float V[B][T][C];
+    #pragma HLS ARRAY_PARTITION variable=V type=block factor=INTERFACE_SIZE dim=3
 
     float O[B][T][C];
+    #pragma HLS ARRAY_PARTITION variable=O type=block factor=INTERFACE_SIZE dim=3
 
     // Load from interface to local buffers
-    load_input(input, Q, 0);
-    load_input(input, K, 1);
-    load_input(input, V, 2);
+    load_input(input, Q, OFFSET_Q * INPUT_SIZE_SINGLE);
+    load_input(input, K, OFFSET_K * INPUT_SIZE_SINGLE);
+    load_input(input, V, OFFSET_V * INPUT_SIZE_SINGLE);
 
     // Attention algorithm
     attention(Q, K, V, O);
