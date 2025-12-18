@@ -1,8 +1,1 @@
 .vscode
-
-attention/
-src/hls_config.cfg
-
-.Xil/
-xcd.log
-*.zip
