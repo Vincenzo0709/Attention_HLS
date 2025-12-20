@@ -6,11 +6,8 @@ void partial_attention(
                         m_axi_port_t *P
                     ) {
     
-    // Avoiding function call overhead
-    #pragma HLS INLINE
-    
     // Scaling factor
-    target_type_t scale = 1.0 / hls::sqrt((target_type_t)C);
+    target_type_t scale = 1.0 / hls::sqrt(C);
 
     // Scanning batches
     for(int b=0; b<B; b++) {
@@ -19,8 +16,11 @@ void partial_attention(
         for(int t=0; t<T; t++) {
 
             // Sums line is needed to store partial results in parallel
-            m_axi_port_t sums = {0.0f};
-            #pragma HLS ARRAY_PARTITION variable=sums complete dim=1
+            m_axi_port_t sums;
+            for(int i=0; i<INTERFACE_SIZE; i++) {
+                #pragma HLS unroll
+                sums[i] = 0.0f;
+            }
 
             int sums_idx = 0;
 
@@ -31,7 +31,7 @@ void partial_attention(
 
                 // Scanning line by line, in order to force parallel reads for all elements on the line
                 for (int line=0; line<C/INTERFACE_SIZE; line++) {
-                    #pragma HLS PIPELINE II=1
+                    #pragma HLS pipeline II=1
 
                     #define Q_IDX ((b*T*C + t*C) / INTERFACE_SIZE) + line
                     #define K_IDX ((b*T*C + t2*C) / INTERFACE_SIZE) + line
@@ -45,7 +45,7 @@ void partial_attention(
                     
                     // Scanning each element on the line
                     for(int c=0; c<INTERFACE_SIZE; c++) {
-                        #pragma HLS UNROLL
+                        #pragma HLS unroll
 
                         sum += q_buff[c] * k_buff[c];
 
@@ -53,8 +53,8 @@ void partial_attention(
 
                 }
 
-                // Storing sum into sums line
-                sums[sums_idx++] = sum;
+                // Storing sum into sums line after scaling
+                sums[sums_idx++] = sum*scale;
 
                 // Checking when at the end of a line for sums line. 
                 //  In fact, t, the number of sums to do, is not necessarily multiple of INTERFACE_SIZE,
@@ -77,9 +77,6 @@ void partial_attention(
 
 void safe_softmax(m_axi_port_t *P) {
 
-    // Avoiding function call overhead
-    #pragma HLS INLINE
-
     // Scanning batches
     for(int b=0; b<B; b++) {
 
@@ -91,7 +88,7 @@ void safe_softmax(m_axi_port_t *P) {
             // Finding max value for safety
             // Scanning line by line, in order to force parallel reads for all elements on the line
             for (int line=0; line<T/INTERFACE_SIZE; line++) {
-                #pragma PIPELINE II=1
+                #pragma HLS pipeline II=1
 
                 // Current line index
                 #define LINE_IDX ((b*T*T + t*T) / INTERFACE_SIZE) + line
@@ -99,7 +96,7 @@ void safe_softmax(m_axi_port_t *P) {
 
                 // Scanning line elements
                 for (int t2=0; t2<INTERFACE_SIZE; t2++) {
-                    #pragma UNROLL
+                    #pragma HLS unroll
 
                     #define ELEM_IDX line*INTERFACE_SIZE + t2
 
@@ -114,14 +111,14 @@ void safe_softmax(m_axi_port_t *P) {
             target_type_t expsum=0;
             // Scanning line by line, in order to force parallel reads for all elements on the line
             for (int line=0; line<T/INTERFACE_SIZE; line++) {
-                #pragma PIPELINE II=1
+                #pragma HLS pipeline II=1
 
                 m_axi_port_t buff = P[LINE_IDX];
                 m_axi_port_t exp_buff;
 
                 // Scanning line elements
                 for (int t2=0; t2<INTERFACE_SIZE; t2++) {
-                    #pragma HLS UNROLL
+                    #pragma HLS unroll
                     
                     // For causality the index must be <= t
                     if (ELEM_IDX <= t) {
@@ -147,14 +144,14 @@ void safe_softmax(m_axi_port_t *P) {
             target_type_t inv_expsum = 1.0 / expsum;
             // Scanning line by line, in order to force parallel reads for all elements on the line
             for (int line=0; line<T/INTERFACE_SIZE; line++) {
-                #pragma PIPELINE II=1
+                #pragma HLS pipeline II=1
 
                 m_axi_port_t buff;
                 buff = P[LINE_IDX];
 
                 // Scanning line elements
                 for (int e=0; e<INTERFACE_SIZE; e++) {
-                    #pragma HLS UNROLL
+                    #pragma HLS unroll
 
                     buff[e] *= inv_expsum;
 
@@ -185,8 +182,13 @@ void final_attention(
 
             // Scanning line by line, in order to force parallel reads for all elements on the line
             for (int line=0; line<C/INTERFACE_SIZE; line++) {
+                #pragma HLS pipeline II=1
 
-                m_axi_port_t sum = {0.0f};
+                m_axi_port_t sum;
+                for(int i=0; i<INTERFACE_SIZE; i++) {
+                    #pragma HLS unroll
+                    sum[i] = 0.0f;
+                }
 
                 // Scanning line elements
                 for(int t2=0; t2<=t; t2++) {
@@ -203,6 +205,7 @@ void final_attention(
 
                     // Multiplying the element P[P_LINE{IDX][P_ELEM_IDX] by the line V[V_IDX]
                     for (int e=0; e<INTERFACE_SIZE; e++) {
+                        #pragma HLS unroll
                         
                         sum[e] += p_elem * v_buff[e];
                     
@@ -220,4 +223,41 @@ void final_attention(
 
     }
 
+}
+
+void krnl_attention(
+                    const m_axi_port_t*     input,
+                    m_axi_port_t*           output
+                ) {
+
+    // Interfaces specification
+    #pragma HLS INTERFACE mode=m_axi port=input depth=INPUT_LINES bundle=gmem0 \
+        max_read_burst_length=INTERFACE_SIZE \
+        max_widen_bitwidth=512 \
+        max_write_burst_length=INTERFACE_SIZE
+
+    #pragma HLS INTERFACE mode=m_axi port=output depth=OUTPUT_LINES bundle=gmem0 \
+        max_read_burst_length=INTERFACE_SIZE \
+        max_widen_bitwidth=512 \
+        max_write_burst_length=INTERFACE_SIZE
+
+    // Zero-copy pointers
+    const m_axi_port_t *Q_ptr = input + OFFSET_Q;
+    const m_axi_port_t *K_ptr = input + OFFSET_K;
+    const m_axi_port_t *V_ptr = input + OFFSET_V;
+
+    // ------------------- //
+    // Attention algorithm //
+    // ------------------- //
+
+    // Partial Attention result
+    m_axi_port_t P[B*T*T / INTERFACE_SIZE];
+    partial_attention(Q_ptr, K_ptr, P);
+
+    // Safe Softmax
+    safe_softmax(P);
+
+    // Partial Attention * V
+    final_attention(P, V_ptr, output);
+    
 }

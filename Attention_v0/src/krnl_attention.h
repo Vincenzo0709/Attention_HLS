@@ -1,7 +1,6 @@
 #ifndef __KRNL_ATTENTION_H__
 #define __KRNL_ATTENTION_H__
 
-#include <cstdint>          // for std int types
 #include <hls_math.h>       // for HLS optimized math functions
 #include <hls_vector.h>     // for hls::vector
 #include <hls_half.h>       // for half float precision type
@@ -43,7 +42,7 @@
 #endif
 
 // Interface size depends on target_type_t, so do number of lines in input and output
-#define INTERFACE_SIZE          (M_AXI_DWIDTH / sizeof(target_type_t))
+#define INTERFACE_SIZE          (M_AXI_DWIDTH / (sizeof(target_type_t) * 8))
 #define INPUT_LINES             (INPUT_SIZE / INTERFACE_SIZE)
 #define OUTPUT_LINES            (OUTPUT_SIZE / INTERFACE_SIZE)
 
