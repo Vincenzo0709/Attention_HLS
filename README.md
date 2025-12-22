@@ -14,6 +14,7 @@ You can choose between three data types:
 - float16;
 - float32;
 - double.
+
 by adding into Makefile the line:
 ```
 CPPFLAGS = -D<type>
