@@ -1,7 +1,9 @@
 # HLS Attention
 This repository holds some Single-Head Attention HLS implementations.
 - Attention_v0: base version without any optimizations;
-- Attention_v1: 
+- Attention_v1: first optimizations;
+- Attention_v2: most efficient version, without array partition.
+- Attention_v3: most efficient version, with array partition and full unrolling for line accesses.
 
 # Compile
 ```

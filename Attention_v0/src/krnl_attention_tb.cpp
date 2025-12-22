@@ -149,9 +149,9 @@ int main() {
     // Report
     if(errors == 0) {
         cout << "SUCCESS!" << endl << endl;
-        cout << "Maximum diff: "<< max_diff;
+        cout << "Maximum diff: "<< max_diff << endl << endl;
     } else {
-        cout << "TEST failed! " << errors << " errors found." << endl;
+        cout << "TEST failed! " << errors << " errors found." << endl << endl;
     }
 
     return (errors == 0) ? 0 : 1;
