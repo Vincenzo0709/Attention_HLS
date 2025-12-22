@@ -150,10 +150,10 @@ void safe_softmax(m_axi_port_t *P) {
                 buff = P[LINE_IDX];
 
                 // Scanning line elements
-                for (int e=0; e<INTERFACE_SIZE; e++) {
+                for (int c=0; c<INTERFACE_SIZE; c++) {
                     #pragma HLS unroll
 
-                    buff[e] *= inv_expsum;
+                    buff[c] *= inv_expsum;
 
                 }
 
@@ -204,10 +204,10 @@ void final_attention(
                     m_axi_port_t v_buff = V[V_IDX];
 
                     // Multiplying the element P[P_LINE{IDX][P_ELEM_IDX] by the line V[V_IDX]
-                    for (int e=0; e<INTERFACE_SIZE; e++) {
+                    for (int c=0; c<INTERFACE_SIZE; c++) {
                         #pragma HLS unroll
                         
-                        sum[e] += p_elem * v_buff[e];
+                        sum[c] += p_elem * v_buff[c];
                     
                     }
 
